@@ -5,7 +5,7 @@ from networks.global_local_net import GlobalLocalNetwork
 
 def test_global_local_network():
 
-    batch, in_ch, dim_z, dim_y, dim_x = 8, 1, 32, 32, 32
+    batch, in_ch, dim_z, dim_y, dim_x = 2, 1, 32, 32, 32
     in_global_images = torch.randn([batch, in_ch, dim_z, dim_y, dim_x])
     in_local_images = torch.randn([batch, in_ch, dim_z, dim_y, dim_x])
 

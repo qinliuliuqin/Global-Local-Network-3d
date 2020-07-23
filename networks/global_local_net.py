@@ -177,10 +177,10 @@ class Encoder(nn.Module):
         self.layer4 = DownBlock(in_channels[3], out_channels[3], 3, compression=True)
         self.layer5 = DownBlock(in_channels[4], out_channels[4], 3, compression=True)
 
-    def forward(self, input, feature_maps=None):
+    def forward(self, input, ext_fms=None):
         assert isinstance(input, torch.Tensor)
 
-        if feature_maps is None:
+        if ext_fms is None:
             out1 = self.layer1(input)
             out2 = self.layer2(out1)
             out3 = self.layer3(out2)
@@ -188,14 +188,11 @@ class Encoder(nn.Module):
             out5 = self.layer5(out4)
 
         else:
-            if feature_maps[0] is None:
-                out1 = self.layer1(input)
-            else:
-                out1 = self.layer1(torch.cat((input, feature_maps[0]), 1))
-            out2 = self.layer2(torch.cat((out1, feature_maps[1]), 1))
-            out3 = self.layer3(torch.cat((out2, feature_maps[2]), 1))
-            out4 = self.layer4(torch.cat((out3, feature_maps[3]), 1))
-            out5 = self.layer5(torch.cat((out4, feature_maps[4]), 1))
+            out1 = self.layer1(input + ext_fms[0])
+            out2 = self.layer2(out1 + ext_fms[1])
+            out3 = self.layer3(out2 + ext_fms[2])
+            out4 = self.layer4(out3 + ext_fms[3])
+            out5 = self.layer5(out4 + ext_fms[4])
 
         return [out1, out2, out3, out4, out5]
 
@@ -207,32 +204,28 @@ class Decoder(nn.Module):
         self.num_layers = 5
         assert len(in_channels) == len(out_channels) == 5
 
-        self.layer1 = UpBlock(in_channels[0], out_channels[0], 3, compression=True)
-        self.layer2 = UpBlock(in_channels[1], out_channels[1], 3, compression=True)
+        self.layer1 = OutputBlock(in_channels[0], out_channels[0])
+        self.layer2 = UpBlock(in_channels[1], out_channels[1], 1, compression=False)
         self.layer3 = UpBlock(in_channels[2], out_channels[2], 2,  compression=False)
-        self.layer4 = UpBlock(in_channels[3], out_channels[3], 1, compression=False)
-        self.layer5 = OutputBlock(in_channels[4], out_channels[4])
+        self.layer4 = UpBlock(in_channels[3], out_channels[3], 3, compression=True)
+        self.layer5 = UpBlock(in_channels[4], out_channels[4], 3, compression=True)
 
-    def forward(self, input, feature_maps=None):
+    def forward(self, input, skip, ext_fms=None):
         assert isinstance(input, torch.Tensor)
-        assert len(feature_maps) == self.num_layers
 
-        if feature_maps is None:
-            out1 = self.layer1(input)
-            out2 = self.layer2(out1)
-            out3 = self.layer3(out2)
-            out4 = self.layer4(out3)
-            out5 = self.layer5(out4)
+        if ext_fms is None:
+            out5 = self.layer5(input)
+            out4 = self.layer4(torch.cat((out5, skip[3]), 1))
+            out3 = self.layer3(torch.cat((out4, skip[2]), 1))
+            out2 = self.layer2(torch.cat((out3, skip[1]), 1))
+            out1 = self.layer1(torch.cat((out2, skip[0]), 1))
 
         else:
-            if feature_maps[0] is None:
-                out1 = self.layer1(input)
-            else:
-                out1 = self.layer1(torch.cat((input, feature_maps[0]), 1))
-            out2 = self.layer2(torch.cat((out1, feature_maps[1]), 1))
-            out3 = self.layer3(torch.cat((out2, feature_maps[2]), 1))
-            out4 = self.layer4(torch.cat((out3, feature_maps[3]), 1))
-            out5 = self.layer5(torch.cat((out4, feature_maps[4]), 1))
+            out5 = self.layer5(input + ext_fms[4])
+            out4 = self.layer4(torch.cat((out5, skip[3]), 1) + ext_fms[3])
+            out3 = self.layer3(torch.cat((out4, skip[2]), 1) + ext_fms[2])
+            out2 = self.layer2(torch.cat((out3, skip[1]), 1) + ext_fms[1])
+            out1 = self.layer1(torch.cat((out2, skip[0]), 1) + ext_fms[0])
 
         return [out1, out2, out3, out4, out5]
 
@@ -262,35 +255,28 @@ class GlobalLocalNetwork(nn.Module):
         super(GlobalLocalNetwork, self).__init__()
 
         self.global_encoder = Encoder([num_in_channels, 16, 32, 64, 128], [16, 32, 64, 128, 256])
-        self.global_decoder = Decoder([256, 256, 128, 64, 32], [128, 64, 32, 16, 32])
+        self.global_decoder = Decoder([32, 64, 128, 256, 256], [32, 16, 32, 64, 128])
         self.global_header = SegmentationHeader(32, num_out_channels)
 
-        self.local_encoder = Encoder([num_in_channels, 32, 64, 128, 256], [16, 32, 64, 128, 256])
-        self.local_decoder = Decoder([512, 384, 192, 96, 48], [128, 64, 32, 16, 32])
+        self.local_encoder = Encoder([num_in_channels, 16, 32, 64, 128], [16, 32, 64, 128, 256])
+        self.local_decoder = Decoder([32, 64, 128, 256, 256], [32, 16, 32, 64, 128])
         self.local_header = SegmentationHeader(32, num_out_channels)
 
+    def global_to_local(self, input_global):
+        pass
 
-    def forward(self, input_global, input_local, coords):
-
+    def forward(self, input_global, input_local, coords=None):
         # global branch
-        fms_global_encoder = self.global_encoder(input_global)
-        fms_global_skip = [None, fms_global_encoder[3], fms_global_encoder[2], fms_global_encoder[1],
-                           fms_global_encoder[0]]
-        fms_global_decoder = self.global_decoder(fms_global_encoder[4], fms_global_skip)
-
-        # global to local up-sampling
-        # TO BE DONE
+        fms_g_e = self.global_encoder(input_global)
+        fms_g_d_skip = [fms_g_e[0], fms_g_e[1], fms_g_e[2], fms_g_e[3]]
+        fms_g_d = self.global_decoder(fms_g_e[4], fms_g_d_skip)
 
         # concatenate global and local feature maps
-        fms_g2l_encoder_skip = [None, fms_global_encoder[0], fms_global_encoder[1], fms_global_encoder[2],
-                        fms_global_encoder[3]]
-        fms_local_encoder = self.local_encoder(input_local, fms_g2l_encoder_skip)
-        fms_local_skip = [fms_global_encoder[-1],
-                          torch.cat((fms_global_decoder[0], fms_local_encoder[3]), 1),
-                          torch.cat((fms_global_decoder[1], fms_local_encoder[2]), 1),
-                          torch.cat((fms_global_decoder[2], fms_local_encoder[1]), 1),
-                          torch.cat((fms_global_decoder[3], fms_local_encoder[0]), 1)]
+        fms_l_e_ext = [input_global, fms_g_e[0], fms_g_e[1], fms_g_e[2], fms_g_e[3]]
+        fms_l_e = self.local_encoder(input_local, fms_l_e_ext)
+        fms_l_d_skip = [fms_l_e[0], fms_l_e[1], fms_l_e[2], fms_l_e[3]]
+        fms_l_d_ext = [torch.cat((fms_g_e[0], fms_g_d[1]), 1), torch.cat((fms_g_e[1], fms_g_d[2]), 1),
+                       torch.cat((fms_g_e[2], fms_g_d[3]), 1), torch.cat((fms_g_e[3], fms_g_d[4]), 1), fms_g_e[4]]
+        fms_l_d = self.local_decoder(fms_l_e[4], fms_l_d_skip, fms_l_d_ext)
 
-        fms_local_decoder = self.local_decoder(fms_local_encoder[4], fms_local_skip)
-
-        return self.global_header(fms_global_decoder[-1]), self.local_header(fms_local_decoder[-1])
+        return self.global_header(fms_g_d[0]), self.local_header(fms_l_d[0])
