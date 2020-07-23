@@ -1,3 +1,4 @@
+import torch.nn.functional as F
 import torch
 import torch.nn as nn
 
@@ -264,10 +265,28 @@ class GlobalLocalNetwork(nn.Module):
 
         self.ensemble_header = SegmentationHeader(64, num_out_channels)
 
-    def global_to_local(self, input_global):
-        pass
+    def _crop_and_upsample_global(self, fms_global, start_coords, ratio):
+        """
+        Crop global patches and then up-sample these cropped patches
+        """
+        batch, ch, dim_z, dim_y, dim_x = fms_global.shape
+        _batch, _dim = start_coords.shape
+        assert batch == _batch and _dim == 3
 
-    def forward(self, input_global, input_local, mode, coords=None):
+        cropped_patches = []
+        cropped_size = [dim_z // ratio, dim_y // ratio, dim_x // ratio]
+        for idx in range(batch):
+            s_z, s_y, s_x = int(start_coords[idx][0]), int(start_coords[idx][1]), int(start_coords[idx][2])
+            e_z, e_y, e_x = int(s_z + cropped_size[0]), int(s_y + cropped_size[1]), int(s_x + cropped_size[2])
+            cropped_patch = fms_global[idx, :, s_z:e_z, s_y:e_y, s_x:e_x]
+            cropped_patches.append(torch.unsqueeze(cropped_patch, 0))
+        cropped_patches = torch.cat(cropped_patches, 0)
+        upsampled_cropped_patches = F.interpolate(cropped_patches, (dim_z, dim_y, dim_x), mode='trilinear',
+                                                  align_corners=True)
+
+        return upsampled_cropped_patches
+
+    def forward(self, input_global, input_local, mode, coords=None, ratio=None):
 
         if mode == 1:
             # train global model only
@@ -295,9 +314,10 @@ class GlobalLocalNetwork(nn.Module):
             fms_l_d = self.local_decoder(fms_l_e[4], fms_l_d_skip)
 
             # crop from the global patch
-            fms_ensemble = torch.cat((fms_g_d[0], fms_l_d[0]), 1)
+            cropped_upsampled_fms_g_d = self._crop_and_upsample_global(fms_g_d[0], coords, ratio)
+            fms_ensemble = torch.cat((cropped_upsampled_fms_g_d, fms_l_d[0]), 1)
 
-            return self.ensemble_header(fms_ensemble)
+            return self.global_header(fms_g_d[0]), self.local_header(fms_l_d[0]), self.ensemble_header(fms_ensemble)
 
         else:
             raise ValueError('Unsupported value type.')

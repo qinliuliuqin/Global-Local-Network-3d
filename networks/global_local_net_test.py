@@ -12,7 +12,13 @@ def test_global_local_network():
     out_ch = 4
     mode = 3
     model = GlobalLocalNetwork(in_ch, out_ch)
-    seg = model(in_global_images, in_local_images, mode, None)
+
+    coords = torch.zeros([batch, 3])
+    ratio = 4
+    if mode == 3:
+        _, _, seg = model(in_global_images, in_local_images, mode, coords, ratio)
+    else:
+        seg = model(in_global_images, in_local_images, mode)
 
     print(seg.shape)
 
