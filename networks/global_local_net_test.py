@@ -10,10 +10,11 @@ def test_global_local_network():
     in_local_images = torch.randn([batch, in_ch, dim_z, dim_y, dim_x])
 
     out_ch = 4
+    mode = 3
     model = GlobalLocalNetwork(in_ch, out_ch)
-    global_seg, local_seg = model(in_global_images, in_local_images, None)
+    seg = model(in_global_images, in_local_images, mode, None)
 
-    print(global_seg.shape, local_seg.shape)
+    print(seg.shape)
 
 
 if __name__ == '__main__':

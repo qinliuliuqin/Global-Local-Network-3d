@@ -262,21 +262,42 @@ class GlobalLocalNetwork(nn.Module):
         self.local_decoder = Decoder([32, 64, 128, 256, 256], [32, 16, 32, 64, 128])
         self.local_header = SegmentationHeader(32, num_out_channels)
 
+        self.ensemble_header = SegmentationHeader(64, num_out_channels)
+
     def global_to_local(self, input_global):
         pass
 
-    def forward(self, input_global, input_local, coords=None):
-        # global branch
-        fms_g_e = self.global_encoder(input_global)
-        fms_g_d_skip = [fms_g_e[0], fms_g_e[1], fms_g_e[2], fms_g_e[3]]
-        fms_g_d = self.global_decoder(fms_g_e[4], fms_g_d_skip)
+    def forward(self, input_global, input_local, mode, coords=None):
 
-        # concatenate global and local feature maps
-        fms_l_e_ext = [input_global, fms_g_e[0], fms_g_e[1], fms_g_e[2], fms_g_e[3]]
-        fms_l_e = self.local_encoder(input_local, fms_l_e_ext)
-        fms_l_d_skip = [fms_l_e[0], fms_l_e[1], fms_l_e[2], fms_l_e[3]]
-        fms_l_d_ext = [torch.cat((fms_g_e[0], fms_g_d[1]), 1), torch.cat((fms_g_e[1], fms_g_d[2]), 1),
-                       torch.cat((fms_g_e[2], fms_g_d[3]), 1), torch.cat((fms_g_e[3], fms_g_d[4]), 1), fms_g_e[4]]
-        fms_l_d = self.local_decoder(fms_l_e[4], fms_l_d_skip, fms_l_d_ext)
+        if mode == 1:
+            # train global model only
+            fms_g_e = self.global_encoder(input_global)
+            fms_g_d_skip = [fms_g_e[0], fms_g_e[1], fms_g_e[2], fms_g_e[3]]
+            fms_g_d = self.global_decoder(fms_g_e[4], fms_g_d_skip)
 
-        return self.global_header(fms_g_d[0]), self.local_header(fms_l_d[0])
+            return self.global_header(fms_g_d[0])
+
+        elif mode == 2:
+            fms_l_e = self.local_encoder(input_local)
+            fms_l_d_skip = [fms_l_e[0], fms_l_e[1], fms_l_e[2], fms_l_e[3]]
+            fms_l_d = self.local_decoder(fms_l_e[4], fms_l_d_skip)
+
+            return self.local_header(fms_l_d[0])
+
+        elif mode == 3:
+            # train global to local model
+            fms_g_e = self.global_encoder(input_global)
+            fms_g_d_skip = [fms_g_e[0], fms_g_e[1], fms_g_e[2], fms_g_e[3]]
+            fms_g_d = self.global_decoder(fms_g_e[4], fms_g_d_skip)
+
+            fms_l_e = self.local_encoder(input_local)
+            fms_l_d_skip = [fms_l_e[0], fms_l_e[1], fms_l_e[2], fms_l_e[3]]
+            fms_l_d = self.local_decoder(fms_l_e[4], fms_l_d_skip)
+
+            # crop from the global patch
+            fms_ensemble = torch.cat((fms_g_d[0], fms_l_d[0]), 1)
+
+            return self.ensemble_header(fms_ensemble)
+
+        else:
+            raise ValueError('Unsupported value type.')
