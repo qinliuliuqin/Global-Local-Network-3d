@@ -5,15 +5,15 @@ from networks.global_local_net import GlobalLocalNetwork
 
 def test_global_local_network():
 
-    batch, ch, dim_z, dim_y, dim_x = 2, 1, 32, 32, 32
-    in_global_images = torch.randn([batch, ch, dim_z, dim_y, dim_x])
-    in_local_images = torch.randn([batch, ch, dim_z, dim_y, dim_x])
+    batch, in_ch, dim_z, dim_y, dim_x = 8, 1, 32, 32, 32
+    in_global_images = torch.randn([batch, in_ch, dim_z, dim_y, dim_x])
+    in_local_images = torch.randn([batch, in_ch, dim_z, dim_y, dim_x])
 
+    out_ch = 4
+    model = GlobalLocalNetwork(in_ch, out_ch)
+    global_seg, local_seg = model(in_global_images, in_local_images, None)
 
-    model = GlobalLocalNetwork(1, 4)
-    res = model(in_global_images, in_local_images, None)
-
-    print(res.shape)
+    print(global_seg.shape, local_seg.shape)
 
 
 if __name__ == '__main__':

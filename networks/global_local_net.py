@@ -278,7 +278,7 @@ class GlobalLocalNetwork(nn.Module):
                            fms_global_encoder[0]]
         fms_global_decoder = self.global_decoder(fms_global_encoder[4], fms_global_skip)
 
-        # global to local upsampling
+        # global to local up-sampling
         # TO BE DONE
 
         # concatenate global and local feature maps
@@ -293,4 +293,4 @@ class GlobalLocalNetwork(nn.Module):
 
         fms_local_decoder = self.local_decoder(fms_local_encoder[4], fms_local_skip)
 
-        return fms_local_decoder[-1]
+        return self.global_header(fms_global_decoder[-1]), self.local_header(fms_local_decoder[-1])
