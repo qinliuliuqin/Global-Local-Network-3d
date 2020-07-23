@@ -10,11 +10,11 @@ def test_global_local_network():
     in_local_images = torch.randn([batch, in_ch, dim_z, dim_y, dim_x])
 
     out_ch = 4
-    mode = 3
     model = GlobalLocalNetwork(in_ch, out_ch)
 
     coords = torch.zeros([batch, 3])
     ratio = 4
+    mode = 3
     if mode == 3:
         _, _, seg = model(in_global_images, in_local_images, mode, coords, ratio)
     else:

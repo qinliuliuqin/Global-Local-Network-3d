@@ -281,8 +281,8 @@ class GlobalLocalNetwork(nn.Module):
             cropped_patch = fms_global[idx, :, s_z:e_z, s_y:e_y, s_x:e_x]
             cropped_patches.append(torch.unsqueeze(cropped_patch, 0))
         cropped_patches = torch.cat(cropped_patches, 0)
-        upsampled_cropped_patches = F.interpolate(cropped_patches, (dim_z, dim_y, dim_x), mode='trilinear',
-                                                  align_corners=True)
+        upsampled_cropped_patches = \
+            F.interpolate(cropped_patches, (dim_z, dim_y, dim_x), mode='trilinear', align_corners=True)
 
         return upsampled_cropped_patches
 
