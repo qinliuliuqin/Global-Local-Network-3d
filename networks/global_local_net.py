@@ -265,6 +265,9 @@ class GlobalLocalNetwork(nn.Module):
 
         self.ensemble_header = SegmentationHeader(64, num_out_channels)
 
+    def max_stride(self):
+        return 16
+
     def _crop_and_upsample_global(self, fms_global, start_coords, ratio):
         """
         Crop global patches and then up-sample these cropped patches
@@ -273,11 +276,18 @@ class GlobalLocalNetwork(nn.Module):
         _batch, _dim = start_coords.shape
         assert batch == _batch and _dim == 3
 
+        # debug code
+        print(fms_global.shape, start_coords, ratio)
+
         cropped_patches = []
         cropped_size = [dim_z // ratio, dim_y // ratio, dim_x // ratio]
+
+        # debug code
+        print(cropped_size)
+
         for idx in range(batch):
-            s_z, s_y, s_x = int(start_coords[idx][0]), int(start_coords[idx][1]), int(start_coords[idx][2])
-            e_z, e_y, e_x = int(s_z + cropped_size[0]), int(s_y + cropped_size[1]), int(s_x + cropped_size[2])
+            s_z, s_y, s_x = int(start_coords[idx][2] // ratio), int(start_coords[idx][1]) // ratio, int(start_coords[idx][0] // ratio)
+            e_z, e_y, e_x = int(s_z + cropped_size[2]), int(s_y + cropped_size[1]), int(s_x + cropped_size[0])
             cropped_patch = fms_global[idx, :, s_z:e_z, s_y:e_y, s_x:e_x]
             cropped_patches.append(torch.unsqueeze(cropped_patch, 0))
         cropped_patches = torch.cat(cropped_patches, 0)
@@ -286,7 +296,7 @@ class GlobalLocalNetwork(nn.Module):
 
         return upsampled_cropped_patches
 
-    def forward(self, input_global, input_local, mode, coords=None, ratio=None):
+    def forward(self, input_global, input_local=None, mode=1, coords=None, ratio=None):
 
         if mode == 1:
             # train global model only
