@@ -276,14 +276,8 @@ class GlobalLocalNetwork(nn.Module):
         _batch, _dim = start_coords.shape
         assert batch == _batch and _dim == 3
 
-        # debug code
-        print(fms_global.shape, start_coords, ratio)
-
         cropped_patches = []
         cropped_size = [dim_z // ratio, dim_y // ratio, dim_x // ratio]
-
-        # debug code
-        print(cropped_size)
 
         for idx in range(batch):
             s_z, s_y, s_x = int(start_coords[idx][2] // ratio), int(start_coords[idx][1]) // ratio, int(start_coords[idx][0] // ratio)
