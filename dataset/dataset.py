@@ -1,9 +1,6 @@
-import codecs
 import numpy as np
-import os
 import pandas as pd
 import SimpleITK as sitk
-import torch
 from torch.utils.data import Dataset
 
 from utils.image_tools import select_random_voxels_in_multi_class_mask, crop_image, \
@@ -29,7 +26,7 @@ class SegmentationDataset(Dataset):
     """ training data set for volumetric segmentation """
 
     def __init__(self, mode, im_list, num_classes, spacing, crop_size, ratio, sampling_method,
-                 random_translation, random_scale, interpolation, crop_normalizers):
+                 random_translation, random_scale, interpolation, crop_normalizers, max_stride=16):
         """ constructor
         :param im_list: image-segmentation list file
         :param num_classes: the number of classes
@@ -72,6 +69,8 @@ class SegmentationDataset(Dataset):
 
         self.crop_normalizers = crop_normalizers
         assert isinstance(self.crop_normalizers, list), 'crop normalizers must be a list'
+
+        self.max_stride = max_stride
 
     def __len__(self):
         """ get the number of images in this data set """
@@ -160,8 +159,7 @@ class SegmentationDataset(Dataset):
             crop_spacing = self.spacing * np.random.uniform(self.random_scale[0], self.random_scale[1])
 
             # sample a crop from image and normalize it
-            image = crop_image(image, center, self.crop_size, crop_spacing, self.interpolation)
-            image = self.crop_normalizers[0](image)
+            image = self.crop_normalizers[0](crop_image(image, center, self.crop_size, crop_spacing, self.interpolation))
             seg = crop_image(seg, center, self.crop_size, crop_spacing, 'NN')
 
             # convert to tensors
@@ -169,40 +167,30 @@ class SegmentationDataset(Dataset):
             image_t = convert_image_to_tensor(image)
             seg_t = convert_image_to_tensor(seg)
 
-            # down-sample the image to get the global patch
-            image_g = resample_spacing(image, self.spacing * self.ratio, 16, 'LINEAR')
-            seg_g = resample_spacing(seg, self.spacing * self.ratio, 16, 'NN')
-
-            assert image_g.GetSize()[0] == self.crop_size[0] // self.ratio and \
-                   image_g.GetSize()[1] == self.crop_size[1] // self.ratio and \
-                   image_g.GetSize()[2] == self.crop_size[2] // self.ratio
-
-            # convert global patch to tensor
-            frame_g = get_image_frame(seg_g)
-            image_g_t = convert_image_to_tensor(image_g)
-            seg_g_t = convert_image_to_tensor(seg_g)
-
-            patch_size = self.crop_size // self.ratio
-            sp_g = np.array([np.random.randint(patch_size[idx] - patch_size[idx] // self.ratio) for idx in range(3)], dtype=np.int)
-            sp_l = np.array([sp_g[idx] * self.ratio for idx in range(3)], dtype=np.int)
-            ep_l = np.array([sp_l[idx] + patch_size[idx] for idx in range(3)], dtype=np.int)
-
-            image_l = image[sp_l[0]:ep_l[0], sp_l[1]:ep_l[1], sp_l[2]:ep_l[2]]
-            seg_l = seg[sp_l[0]:ep_l[0], sp_l[1]:ep_l[1], sp_l[2]:ep_l[2]]
-
-            frame_l = get_image_frame(image_l)
-            image_l_t = convert_image_to_tensor(image_l)
-            seg_l_t = convert_image_to_tensor(seg_l)
-
-            coords_t = torch.from_numpy(sp_l)
-
-            return image_t, seg_t, frame, image_g_t, seg_g_t, frame_g, image_l_t, seg_l_t, frame_l, coords_t, image_name
+            return image_t, seg_t, frame, image_name
 
         elif self.mode == 'val':
             # image IO
             image = sitk.ReadImage(image_path, sitk.sitkFloat32)
             seg = sitk.ReadImage(seg_path, sitk.sitkFloat32)
 
+            image = resample_spacing(image, self.spacing, self.max_stride, self.interpolation)
+            seg = resample_spacing(seg, self.spacing, self.max_stride, 'NN')
+
+            # convert to tensors
+            frame = get_image_frame(seg)
+            image_t = convert_image_to_tensor(image)
+            seg_t = convert_image_to_tensor(seg)
+
+            return image_t, seg_t, frame, image_name
 
         else:
-            raise ValueError('Unsupported mode.')
+            # image IO
+            image = sitk.ReadImage(image_path, sitk.sitkFloat32)
+            image = resample_spacing(image, self.spacing, self.max_stride, self.interpolation)
+
+            # convert to tensors
+            frame = get_image_frame(image)
+            image_t = convert_image_to_tensor(image)
+
+            return image_t, None, frame, image_name
