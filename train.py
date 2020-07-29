@@ -22,6 +22,41 @@ from networks.global_local_net import GlobalLocalNetwork
 from networks.module.weight_init import kaiming_weight_init
 
 
+def train_one_epoch(model, optimizer, data_loader, loss_func, num_gpus, epoch, logger, writer, print_freq):
+    """ Train one epoch
+    """
+    model.train()
+
+    avg_loss = 0
+    for batch_idx, batch_data in enumerate(data_loader):
+        begin_t = time.time()
+
+        crops_o, masks_o, frames_0, crops_g, masks_g, frames_g, crops_l, masks_l, frames_l, coords, filenames = batch_data
+
+        if num_gpus > 0:
+            crops_g, masks_g, crops_l, masks_l, coords = crops_g.cuda(), masks_g.cuda(), crops_l.cuda(), masks_l.cuda(), coords.cuda()
+
+        # clear previous gradients
+        optimizer.zero_grad()
+
+        outputs_g, outputs_l, outputs_g2l = model(crops_g, crops_l, 3, coords, 4)
+        train_loss = loss_func(outputs_g, masks_g)
+        train_loss.backward()
+
+        # update weights
+        optimizer.step()
+
+        batch_duration = time.time() - begin_t
+
+        # print training loss per batch
+        msg = 'epoch: {}, batch: {}, train_loss: {:.4f}, time: {:.4f} s/vol'
+        msg = msg.format(epoch, batch_idx, train_loss.item(), batch_duration)
+        logger.info(msg)
+
+    writer.add_scalar('Train/Loss', avg_loss / len(data_loader), epoch)
+
+
+
 def train(train_config_file):
     """ Medical image segmentation training engine
     :param train_config_file: the input configuration file
@@ -57,24 +92,39 @@ def train(train_config_file):
         torch.cuda.manual_seed(train_cfg.general.seed)
 
     # dataset
-    dataset = SegmentationDataset(
-                mode='train',
-                im_list=train_cfg.general.train_im_list,
-                num_classes=train_cfg.dataset.num_classes,
-                spacing=train_cfg.dataset.spacing,
-                crop_size=train_cfg.dataset.crop_size,
-                ratio=train_cfg.dataset.down_sample_ratio,
-                sampling_method=train_cfg.dataset.sampling_method,
-                random_translation=train_cfg.dataset.random_translation,
-                random_scale=train_cfg.dataset.random_scale,
-                interpolation=train_cfg.dataset.interpolation,
-                crop_normalizers=train_cfg.dataset.crop_normalizers)
+    train_dataset = SegmentationDataset(
+        mode='train',
+        im_list=train_cfg.general.train_im_list,
+        num_classes=train_cfg.dataset.num_classes,
+        spacing=train_cfg.dataset.spacing,
+        crop_size=train_cfg.dataset.crop_size,
+        ratio=train_cfg.dataset.down_sample_ratio,
+        sampling_method=train_cfg.dataset.sampling_method,
+        random_translation=train_cfg.dataset.random_translation,
+        random_scale=train_cfg.dataset.random_scale,
+        interpolation=train_cfg.dataset.interpolation,
+        crop_normalizers=train_cfg.dataset.crop_normalizers
+    )
+    train_data_loader = DataLoader(train_dataset, batch_size=train_cfg.train.batchsize,
+                                   num_workers=train_cfg.train.num_threads, pin_memory=True, shuffle=True)
 
-    sampler = EpochConcateSampler(dataset, train_cfg.train.epochs)
-    data_loader = DataLoader(dataset, sampler=sampler, batch_size=train_cfg.train.batchsize,
-                             num_workers=train_cfg.train.num_threads, pin_memory=True)
+    val_dataset = SegmentationDataset(
+        mode='val',
+        im_list=train_cfg.general.train_im_list,
+        num_classes=train_cfg.dataset.num_classes,
+        spacing=train_cfg.dataset.spacing,
+        crop_size=train_cfg.dataset.crop_size,
+        ratio=train_cfg.dataset.down_sample_ratio,
+        sampling_method=train_cfg.dataset.sampling_method,
+        random_translation=train_cfg.dataset.random_translation,
+        random_scale=train_cfg.dataset.random_scale,
+        interpolation=train_cfg.dataset.interpolation,
+        crop_normalizers=train_cfg.dataset.crop_normalizers
+    )
+    val_data_loader = DataLoader(val_dataset, batch_size=1, num_workers=1, shuffle=False)
 
-    net = GlobalLocalNetwork(dataset.num_modality(), train_cfg.dataset.num_classes)
+    # define network
+    net = GlobalLocalNetwork(train_dataset.num_modality(), train_cfg.dataset.num_classes)
     net.apply(kaiming_weight_init)
     max_stride = net.max_stride()
 
@@ -105,38 +155,11 @@ def train(train_config_file):
 
     writer = SummaryWriter(os.path.join(model_folder, 'tensorboard'))
 
-    batch_idx = batch_start
-    data_iter = iter(data_loader)
+    max_avg_dice = 0
+    for epoch_idx in range(train_cfg.train.epochs):
 
-    # loop over batches
-    for i in range(len(data_loader)):
-        begin_t = time.time()
-
-        crops_o, masks_o, frames_0, crops_g, masks_g, frames_g, crops_l, masks_l, frames_l, coords, filenames = data_iter.next()
-
-        if train_cfg.general.num_gpus > 0:
-            crops_g, masks_g, crops_l, masks_l, coords = crops_g.cuda(), masks_g.cuda(), crops_l.cuda(), masks_l.cuda(), coords.cuda()
-
-        # clear previous gradients
-        opt.zero_grad()
-
-        # network forward and backward
-        outputs_g, outputs_l, outputs_g2l = net(crops_g, crops_l, 3, coords, 4)
-        train_loss = loss_func(outputs_g, masks_g)
-        train_loss.backward()
-
-        # update weights
-        opt.step()
-
-        epoch_idx = batch_idx * train_cfg.train.batchsize // len(dataset)
-        batch_idx += 1
-        batch_duration = time.time() - begin_t
-        sample_duration = batch_duration * 1.0 / train_cfg.train.batchsize
-
-        # print training loss per batch
-        msg = 'epoch: {}, batch: {}, train_loss: {:.4f}, time: {:.4f} s/vol'
-        msg = msg.format(epoch_idx, batch_idx, train_loss.item(), sample_duration)
-        logger.info(msg)
+        train_one_epoch(net, opt, train_data_loader, loss_func, train_cfg.general.num_gpus, epoch_idx+last_save_epoch,
+            logger, writer, train_cfg.train.print_freq)
 
 
 def main():

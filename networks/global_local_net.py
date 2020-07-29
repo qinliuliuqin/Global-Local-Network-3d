@@ -301,6 +301,7 @@ class GlobalLocalNetwork(nn.Module):
             return self.global_header(fms_g_d[0])
 
         elif mode == 2:
+            # train local model only
             fms_l_e = self.local_encoder(input_local)
             fms_l_d_skip = [fms_l_e[0], fms_l_e[1], fms_l_e[2], fms_l_e[3]]
             fms_l_d = self.local_decoder(fms_l_e[4], fms_l_d_skip)

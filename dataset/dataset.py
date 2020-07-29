@@ -197,3 +197,12 @@ class SegmentationDataset(Dataset):
             coords_t = torch.from_numpy(sp_l)
 
             return image_t, seg_t, frame, image_g_t, seg_g_t, frame_g, image_l_t, seg_l_t, frame_l, coords_t, image_name
+
+        elif self.mode == 'val':
+            # image IO
+            image = sitk.ReadImage(image_path, sitk.sitkFloat32)
+            seg = sitk.ReadImage(seg_path, sitk.sitkFloat32)
+
+
+        else:
+            raise ValueError('Unsupported mode.')

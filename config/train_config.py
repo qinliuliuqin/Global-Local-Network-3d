@@ -18,7 +18,7 @@ __C.general.train_im_list = '/mnt/projects/CT_Dental/debug/crop/cropped_image.ni
 __C.general.val_im_list = '/mnt/projects/CT_Dental/debug/crop/cropped_image.nii.gz/test.csv'
 
 # the output of training models and logs
-__C.general.save_dir = '/mnt/projects/CT_Dental/debug/model_0723_2020'
+__C.general.save_dir = '/mnt/projects/CT_Dental/debug/model_0729_2020'
 
 # the model scale
 __C.general.model_scale = 'fine'
@@ -127,6 +127,7 @@ __C.train.betas = (0.9, 0.999)
 # the number of batches to save model
 __C.train.save_epochs = 2
 
+__C.train.print_freq = 1
 
 ###################################
 # debug parameters
