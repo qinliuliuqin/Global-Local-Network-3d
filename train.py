@@ -130,8 +130,9 @@ def train(train_config_file):
 
     if train_cfg.loss.name == 'Focal':
         # reuse focal loss if exists
-        loss_func = FocalLoss(class_num=train_cfg.dataset.num_classes, alpha=train_cfg.loss.obj_weight, gamma=train_cfg.loss.focal_gamma,
-                              use_gpu=train_cfg.general.num_gpus > 0)
+        loss_func = FocalLoss(class_num=train_cfg.dataset.num_classes, alpha=train_cfg.loss.obj_weight,
+                              gamma=train_cfg.loss.focal_gamma,use_gpu=train_cfg.general.num_gpus > 0)
+
     elif train_cfg.loss.name == 'Dice':
         loss_func = MultiDiceLoss(weights=train_cfg.loss.obj_weight, num_class=train_cfg.dataset.num_classes,
                                   use_gpu=train_cfg.general.num_gpus > 0)
