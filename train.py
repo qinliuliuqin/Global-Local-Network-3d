@@ -23,11 +23,11 @@ from networks.module.weight_init import kaiming_weight_init
 from utils.helper import Trainer
 
 
-def train_one_epoch(model, optimizer, data_loader, down_sample_ratio, loss_func, num_gpus, epoch, logger, writer, print_freq):
+def train_one_epoch(model, branch_weight, optimizer, data_loader, down_sample_ratio, loss_func, num_gpus, epoch, logger, writer, print_freq):
     """ Train one epoch
     """
 
-    trainer = Trainer(optimizer, down_sample_ratio, loss_func, [0, 0, 1], num_gpus > 0)
+    trainer = Trainer(optimizer, down_sample_ratio, loss_func, branch_weight, num_gpus > 0)
 
     avg_loss = 0
     for batch_idx, (crops, masks, _, _) in enumerate(data_loader):
@@ -144,8 +144,8 @@ def train(train_config_file):
     max_avg_dice = 0
     for epoch_idx in range(train_cfg.train.epochs):
 
-        train_one_epoch(net, opt, train_data_loader, train_cfg.dataset.down_sample_ratio, loss_func,
-            train_cfg.general.num_gpus, epoch_idx+last_save_epoch, logger, writer, train_cfg.train.print_freq)
+        train_one_epoch(net, train_cfg.loss.branch_weight, opt, train_data_loader, train_cfg.dataset.down_sample_ratio,
+            loss_func, train_cfg.general.num_gpus, epoch_idx+last_save_epoch, logger, writer, train_cfg.train.print_freq)
 
         # test on validation dataset
         if epoch_idx % train_cfg.train.save_epochs:

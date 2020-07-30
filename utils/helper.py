@@ -7,8 +7,11 @@ class Trainer(object):
     def __init__(self, optimizer, down_sample_ratio, loss_func, loss_weight, use_gpu):
         self.optimizer = optimizer
         self.loss_func = loss_func
+
         assert len(loss_weight) == 3
         self.loss_weight = torch.FloatTensor(loss_weight)
+        self.loss_weight = self.loss_weight / torch.sum(self.loss_weight)
+
         self.down_sample_ratio = down_sample_ratio
         self.use_gpu = use_gpu
 
