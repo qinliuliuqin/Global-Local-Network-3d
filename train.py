@@ -20,12 +20,11 @@ from segmentation3d.utils.model_io import load_checkpoint, save_checkpoint
 from dataset.dataset import SegmentationDataset
 from networks.global_local_net import GlobalLocalNetwork
 from networks.module.weight_init import kaiming_weight_init
-from utils.helper import Trainer
+from utils.helper import Trainer, Evaluator
 
 
 def train_one_epoch(model, branch_weight, optimizer, data_loader, down_sample_ratio, loss_func, num_gpus, epoch, logger, writer, print_freq):
-    """ Train one epoch
-    """
+    """ Train one epoch """
 
     trainer = Trainer(model, optimizer, down_sample_ratio, loss_func, branch_weight, num_gpus > 0)
 
@@ -42,6 +41,18 @@ def train_one_epoch(model, branch_weight, optimizer, data_loader, down_sample_ra
 
     writer.add_scalar('Train/Loss', avg_loss / len(data_loader), epoch)
 
+
+def evaluate_one_epoch(model, data_loader, crop_size, down_sample_ratio, normalizer):
+    """ Evaluate one epoch """
+
+    evaluator = Evaluator(model, None, crop_size, down_sample_ratio, normalizer)
+
+    avg_dice = 0
+    for batch_idx, (image, mask) in enumerate(data_loader):
+        dice = evaluator.evaluate(image, mask)
+        avg_dice += dice
+
+    return avg_dice
 
 
 def train(train_config_file):
@@ -141,16 +152,20 @@ def train(train_config_file):
 
     writer = SummaryWriter(os.path.join(model_folder, 'tensorboard'))
 
-    max_avg_dice = 0
+    min_avg_dice = 0
     for epoch_idx in range(train_cfg.train.epochs):
-
         train_one_epoch(net, train_cfg.loss.branch_weight, opt, train_data_loader, train_cfg.dataset.down_sample_ratio,
             loss_func, train_cfg.general.num_gpus, epoch_idx+last_save_epoch, logger, writer, train_cfg.train.print_freq)
 
-        # test on validation dataset
+        # evaluation
         if epoch_idx % train_cfg.train.save_epochs:
-            net.eval()
+            avg_dice = evaluate_one_epoch(net, val_data_loader, train_cfg.dataset.crop_size,
+                train_cfg.dataset.down_sample_ratio, train_cfg.dataset.crop_normalizers[0])
 
+            if avg_dice < min_avg_dice:
+                min_avg_dice = avg_dice
+                # save model
+                # to be done
 
 def main():
 

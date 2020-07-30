@@ -175,20 +175,11 @@ class SegmentationDataset(Dataset):
             image = resample_spacing(image, self.spacing, self.max_stride, self.interpolation)
             seg = resample_spacing(seg, self.spacing, self.max_stride, 'NN')
 
-            # convert to tensors
-            frame = get_image_frame(seg)
-            image_t = convert_image_to_tensor(image)
-            seg_t = convert_image_to_tensor(seg)
-
-            return image_t, seg_t, frame, image_name
+            return image, seg, image_name
 
         else:
             # image IO
             image = sitk.ReadImage(image_path, sitk.sitkFloat32)
             image = resample_spacing(image, self.spacing, self.max_stride, self.interpolation)
 
-            # convert to tensors
-            frame = get_image_frame(image)
-            image_t = convert_image_to_tensor(image)
-
-            return image_t, None, frame, image_name
+            return image, image_name
