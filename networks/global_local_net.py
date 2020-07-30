@@ -290,7 +290,7 @@ class GlobalLocalNetwork(nn.Module):
 
         return upsampled_cropped_patches
 
-    def forward(self, input_global, input_local=None, mode=1, coords=None, ratio=None):
+    def forward(self, input_global, input_local=None, mode=3, coords=None, ratio=None):
 
         if mode == 1:
             # train global model only

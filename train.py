@@ -20,28 +20,23 @@ from segmentation3d.utils.model_io import load_checkpoint, save_checkpoint
 from dataset.dataset import SegmentationDataset
 from networks.global_local_net import GlobalLocalNetwork
 from networks.module.weight_init import kaiming_weight_init
+from utils.helper import Trainer
 
 
-def train_one_epoch(model, optimizer, data_loader, loss_func, num_gpus, epoch, logger, writer, print_freq):
+def train_one_epoch(model, optimizer, data_loader, down_sample_ratio, loss_func, num_gpus, epoch, logger, writer, print_freq):
     """ Train one epoch
     """
-    model.train()
+
+    trainer = Trainer(down_sample_ratio, loss_func, [1, 1, 1], num_gpus > 0)
 
     avg_loss = 0
-    for batch_idx, batch_data in enumerate(data_loader):
+    for batch_idx, (crops, masks, _, _) in enumerate(data_loader):
         begin_t = time.time()
-
-        crops_o, masks_o, frames_0, crops_g, masks_g, frames_g, crops_l, masks_l, frames_l, coords, filenames = batch_data
-
-        if num_gpus > 0:
-            crops_g, masks_g, crops_l, masks_l, coords = crops_g.cuda(), masks_g.cuda(), crops_l.cuda(), masks_l.cuda(), coords.cuda()
 
         # clear previous gradients
         optimizer.zero_grad()
 
-        outputs_g, outputs_l, outputs_g2l = model(crops_g, crops_l, 3, coords, 4)
-        train_loss = loss_func(outputs_g, masks_g)
-        train_loss.backward()
+        loss = trainer.train_global_to_local(crops, masks, model)
 
         # update weights
         optimizer.step()
@@ -50,7 +45,7 @@ def train_one_epoch(model, optimizer, data_loader, loss_func, num_gpus, epoch, l
 
         # print training loss per batch
         msg = 'epoch: {}, batch: {}, train_loss: {:.4f}, time: {:.4f} s/vol'
-        msg = msg.format(epoch, batch_idx, train_loss.item(), batch_duration)
+        msg = msg.format(epoch, batch_idx, loss.item(), batch_duration)
         logger.info(msg)
 
     writer.add_scalar('Train/Loss', avg_loss / len(data_loader), epoch)
@@ -98,7 +93,6 @@ def train(train_config_file):
         num_classes=train_cfg.dataset.num_classes,
         spacing=train_cfg.dataset.spacing,
         crop_size=train_cfg.dataset.crop_size,
-        ratio=train_cfg.dataset.down_sample_ratio,
         sampling_method=train_cfg.dataset.sampling_method,
         random_translation=train_cfg.dataset.random_translation,
         random_scale=train_cfg.dataset.random_scale,
@@ -114,7 +108,6 @@ def train(train_config_file):
         num_classes=train_cfg.dataset.num_classes,
         spacing=train_cfg.dataset.spacing,
         crop_size=train_cfg.dataset.crop_size,
-        ratio=train_cfg.dataset.down_sample_ratio,
         sampling_method=train_cfg.dataset.sampling_method,
         random_translation=train_cfg.dataset.random_translation,
         random_scale=train_cfg.dataset.random_scale,
@@ -158,8 +151,12 @@ def train(train_config_file):
     max_avg_dice = 0
     for epoch_idx in range(train_cfg.train.epochs):
 
-        train_one_epoch(net, opt, train_data_loader, loss_func, train_cfg.general.num_gpus, epoch_idx+last_save_epoch,
-            logger, writer, train_cfg.train.print_freq)
+        train_one_epoch(net, opt, train_data_loader, train_cfg.dataset.down_sample_ratio, loss_func,
+            train_cfg.general.num_gpus, epoch_idx+last_save_epoch, logger, writer, train_cfg.train.print_freq)
+
+        # test on validation dataset
+        if epoch_idx % train_cfg.train.save_epochs:
+            net.eval()
 
 
 def main():

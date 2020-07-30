@@ -110,7 +110,7 @@ __C.net.name = 'global_local_net'
 __C.train = {}
 
 # the number of training epochs
-__C.train.epochs = 11
+__C.train.epochs = 2001
 
 # the number of samples in a batch
 __C.train.batchsize = 1

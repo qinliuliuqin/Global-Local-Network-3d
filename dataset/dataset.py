@@ -25,7 +25,7 @@ def read_image_list(image_list_file, mode):
 class SegmentationDataset(Dataset):
     """ training data set for volumetric segmentation """
 
-    def __init__(self, mode, im_list, num_classes, spacing, crop_size, ratio, sampling_method,
+    def __init__(self, mode, im_list, num_classes, spacing, crop_size, sampling_method,
                  random_translation, random_scale, interpolation, crop_normalizers, max_stride=16):
         """ constructor
         :param im_list: image-segmentation list file
@@ -38,8 +38,6 @@ class SegmentationDataset(Dataset):
         :param crop_normalizers: used to normalize the image crops, one for one image modality
         """
         self.mode = mode
-
-        self.ratio = ratio
 
         if im_list.endswith('csv'):
             self.im_name_list, self.im_path_list, self.seg_path_list = read_image_list(im_list, mode)
