@@ -4,7 +4,10 @@ import torch.nn.functional as F
 
 
 class Trainer(object):
-    def __init__(self, optimizer, down_sample_ratio, loss_func, loss_weight, use_gpu):
+    def __init__(self, model, optimizer, down_sample_ratio, loss_func, loss_weight, use_gpu):
+        self.model = model
+        self.model.train()
+
         self.optimizer = optimizer
         self.loss_func = loss_func
 
@@ -33,7 +36,7 @@ class Trainer(object):
             start_coord = [np.random.randint(self.down_sampled_size[idx] - self.down_sampled_size[idx] // self.down_sample_ratio) for idx in range(3)]
             self.global_to_local_coords.append(start_coord)
 
-    def train_global_to_local(self, images, masks, model):
+    def train(self, images, masks):
         self.generate_global_patches(images, masks)
 
         # crop local patches
@@ -60,9 +63,8 @@ class Trainer(object):
         # clear previous gradients
         self.optimizer.zero_grad()
 
-        model.train()
         out_global, out_local, out_global2local = \
-            model(self.global_patches, local_patches, 3, global_to_local_coords, self.down_sample_ratio)
+            self.model(self.global_patches, local_patches, 3, global_to_local_coords, self.down_sample_ratio)
 
         loss_global = self.loss_func(out_global, self.global_masks)
         loss_local = self.loss_func(out_local, local_masks)
@@ -75,3 +77,16 @@ class Trainer(object):
         self.optimizer.step()
 
         return loss.item()
+
+
+class Evaluator(object):
+    def __init__(self, model):
+        self.model = model
+        self.model.eval()
+
+        pass
+
+    def evaluate(self, crops, mask):
+        pass
+
+

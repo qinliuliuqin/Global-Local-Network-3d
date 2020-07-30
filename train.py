@@ -27,12 +27,12 @@ def train_one_epoch(model, branch_weight, optimizer, data_loader, down_sample_ra
     """ Train one epoch
     """
 
-    trainer = Trainer(optimizer, down_sample_ratio, loss_func, branch_weight, num_gpus > 0)
+    trainer = Trainer(model, optimizer, down_sample_ratio, loss_func, branch_weight, num_gpus > 0)
 
     avg_loss = 0
     for batch_idx, (crops, masks, _, _) in enumerate(data_loader):
         begin_t = time.time()
-        loss = trainer.train_global_to_local(crops, masks, model)
+        loss = trainer.train(crops, masks)
         batch_duration = time.time() - begin_t
 
         # print training loss per batch
