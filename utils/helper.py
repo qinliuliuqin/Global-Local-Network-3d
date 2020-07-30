@@ -4,7 +4,8 @@ import torch.nn.functional as F
 
 
 class Trainer(object):
-    def __init__(self, down_sample_ratio, loss_func, loss_weight, use_gpu):
+    def __init__(self, optimizer, down_sample_ratio, loss_func, loss_weight, use_gpu):
+        self.optimizer = optimizer
         self.loss_func = loss_func
         assert len(loss_weight) == 3
         self.loss_weight = torch.FloatTensor(loss_weight)
@@ -30,7 +31,6 @@ class Trainer(object):
             self.global_to_local_coords.append(start_coord)
 
     def train_global_to_local(self, images, masks, model):
-        model.train()
         self.generate_global_patches(images, masks)
 
         # crop local patches
@@ -54,6 +54,10 @@ class Trainer(object):
                 self.global_patches.cuda(), self.global_masks.cuda(), global_to_local_coords.cuda(), \
                 local_patches.cuda(), local_masks.cuda()
 
+        # clear previous gradients
+        self.optimizer.zero_grad()
+
+        model.train()
         out_global, out_local, out_global2local = \
             model(self.global_patches, local_patches, 3, global_to_local_coords, self.down_sample_ratio)
 
@@ -64,4 +68,7 @@ class Trainer(object):
         loss = loss_global * self.loss_weight[0] + loss_local * self.loss_weight[1] + loss_g2l * self.loss_weight[2]
         loss.backward()
 
-        return loss
+        # update weights
+        self.optimizer.step()
+
+        return loss.item()

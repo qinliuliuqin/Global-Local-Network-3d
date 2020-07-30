@@ -27,25 +27,17 @@ def train_one_epoch(model, optimizer, data_loader, down_sample_ratio, loss_func,
     """ Train one epoch
     """
 
-    trainer = Trainer(down_sample_ratio, loss_func, [1, 1, 1], num_gpus > 0)
+    trainer = Trainer(optimizer, down_sample_ratio, loss_func, [0, 0, 1], num_gpus > 0)
 
     avg_loss = 0
     for batch_idx, (crops, masks, _, _) in enumerate(data_loader):
         begin_t = time.time()
-
-        # clear previous gradients
-        optimizer.zero_grad()
-
         loss = trainer.train_global_to_local(crops, masks, model)
-
-        # update weights
-        optimizer.step()
-
         batch_duration = time.time() - begin_t
 
         # print training loss per batch
         msg = 'epoch: {}, batch: {}, train_loss: {:.4f}, time: {:.4f} s/vol'
-        msg = msg.format(epoch, batch_idx, loss.item(), batch_duration)
+        msg = msg.format(epoch, batch_idx, loss, batch_duration)
         logger.info(msg)
 
     writer.add_scalar('Train/Loss', avg_loss / len(data_loader), epoch)

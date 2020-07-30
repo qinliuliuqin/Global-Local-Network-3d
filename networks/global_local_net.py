@@ -280,8 +280,8 @@ class GlobalLocalNetwork(nn.Module):
         cropped_size = [dim_z // ratio, dim_y // ratio, dim_x // ratio]
 
         for idx in range(batch):
-            s_z, s_y, s_x = int(start_coords[idx][2] // ratio), int(start_coords[idx][1]) // ratio, int(start_coords[idx][0] // ratio)
-            e_z, e_y, e_x = int(s_z + cropped_size[2]), int(s_y + cropped_size[1]), int(s_x + cropped_size[0])
+            s_z, s_y, s_x = int(start_coords[idx][0] // ratio), int(start_coords[idx][1]) // ratio, int(start_coords[idx][2] // ratio)
+            e_z, e_y, e_x = int(s_z + cropped_size[0]), int(s_y + cropped_size[1]), int(s_x + cropped_size[2])
             cropped_patch = fms_global[idx, :, s_z:e_z, s_y:e_y, s_x:e_x]
             cropped_patches.append(torch.unsqueeze(cropped_patch, 0))
         cropped_patches = torch.cat(cropped_patches, 0)
