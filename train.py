@@ -48,7 +48,7 @@ def evaluate_one_epoch(model, data_loader, crop_size, down_sample_ratio, normali
     evaluator = Evaluator(model, None, crop_size, down_sample_ratio, normalizer)
 
     avg_dice = 0
-    for batch_idx, (image, mask) in enumerate(data_loader):
+    for batch_idx, (image, mask, name) in enumerate(data_loader):
         dice = evaluator.evaluate(image, mask)
         avg_dice += dice
 

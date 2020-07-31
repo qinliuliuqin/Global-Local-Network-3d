@@ -175,7 +175,10 @@ class SegmentationDataset(Dataset):
             image = resample_spacing(image, self.spacing, self.max_stride, self.interpolation)
             seg = resample_spacing(seg, self.spacing, self.max_stride, 'NN')
 
-            return image, seg, image_name
+            image_t = convert_image_to_tensor(image)
+            seg_t = convert_image_to_tensor(seg)
+
+            return image_t, seg_t, image_name
 
         else:
             # image IO
