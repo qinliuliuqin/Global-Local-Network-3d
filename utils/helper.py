@@ -122,13 +122,13 @@ class Evaluator(object):
 
         return start_coords
 
-    def evaluate(self, image, mask):
-        assert isinstance(image, torch.Tensor)
-        assert isinstance(mask, torch.Tensor)
-        assert image.dim() == mask.dim() == 5
-        assert np.all([image.shape[idx] == mask.shape[idx] for idx in range(3)])
+    def evaluate(self, images, masks):
+        assert isinstance(images, torch.Tensor)
+        assert isinstance(masks, torch.Tensor)
+        assert images.dim() == masks.dim() == 5
+        assert np.all([images.shape[idx] == masks.shape[idx] for idx in range(3)])
 
-        print(image.shape, mask.shape)
+        print(images.shape, masks.shape)
 
         # # crop image and mask into patches
         # cropped_images, cropped_masks = [], []

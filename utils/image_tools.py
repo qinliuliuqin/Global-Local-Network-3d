@@ -160,62 +160,32 @@ def copy_image(source_image, target_start_voxel, target_end_voxel, target_image)
     return sitk.Paste(target_image, source_image, paste_size, source_start_voxel, target_start_voxel)
 
 
-def image_partition_by_fixed_size(image, bbox_start_voxel, bbox_end_voxel,
-                                  partition_size, partition_stride, max_stride):
+def bbox_partition_by_fixed_voxel_size(bbox_start_voxel, bbox_end_voxel, partition_size):
     """
-    Split image by fixed size.
+    Split a bounding box by fixed voxel size.
 
-    :param image: the input image to be spilt
     :param bbox_start_voxel: the partition start voxel (inclusive)
     :param bbox_end_voxel: the partition end voxel (exclusive)
-    :param partition_size: the physical size of each partition
-    :param partition_stride: the partition stride
-    :return partition_centers: the list containing center voxel of each partition
+    :param partition_size: the voxel size of each partition
+    :return start_coords: the list containing start coordinates of each partition patch
     """
-    image_size, image_spacing, image_origin = image.GetSize(), image.GetSpacing(), image.GetOrigin()
+    bbox_size = [bbox_end_voxel[idx] - bbox_start_voxel[idx] for idx in range(3)]
+    num_partitions = [int(np.ceil(bbox_size[idx] / partition_size[idx])) for idx in range(3)]
+    start_voxel = [[0] * num_partitions[idx] for idx in range(3)]
+
     for idx in range(3):
-        assert image_size[idx] >= max_stride and image_size[idx] % max_stride == 0
+        for i in range(1, num_partitions[idx]):
+            start_voxel[idx][i] = start_voxel[idx][i - 1] + int(np.ceil((bbox_size[idx] - partition_size[idx]) / (num_partitions[idx] - 1)))
+            if i == num_partitions[idx] - 1:
+                start_voxel[idx][i] = bbox_end_voxel[i] - partition_size[i]
 
-    bbox_size = [min(image_size[idx], bbox_end_voxel[idx] - bbox_start_voxel[idx]) for idx in range(3)]
-    for idx in range(3):
-        if bbox_size[idx] % max_stride != 0:
-            bbox_size[idx] = max_stride * (bbox_size[idx] // max_stride + 1)
-        bbox_size[idx] = min(bbox_size[idx], image_size[idx])
-        bbox_end_voxel[idx] = bbox_start_voxel[idx] + bbox_size[idx]
-        if bbox_end_voxel[idx] > image_size[idx]:
-            bbox_end_voxel[idx] = image_size[idx]
-            bbox_start_voxel[idx] = bbox_end_voxel[idx] - bbox_size[idx]
-        assert bbox_start_voxel[idx] >= 0
+    start_voxels = []
+    for i in range(len(start_voxel[0])):
+        for j in range(len(start_voxel[1])):
+            for k in range(len(start_voxel[2])):
+                start_voxels.append([start_voxel[0][i], start_voxel[1][j], start_voxel[2][k]])
 
-    box_size = [int(partition_size[idx] / image_spacing[idx] + 0.5) for idx in range(3)]
-    for idx in range(3):
-        if box_size[idx] % max_stride:
-            box_size[idx] = max_stride * (box_size[idx] // max_stride + 1)
-        box_size[idx] = min(bbox_size[idx], box_size[idx])
-
-    stride_size = [int(partition_stride[idx] / image_spacing[idx] + 0.5) for idx in range(3)]
-    for idx in range(3):
-        stride_size[idx] = min(bbox_size[idx], stride_size[idx])
-
-    num_partitions = [int(np.ceil((bbox_size[idx] - box_size[idx]) / stride_size[idx]) + 1) for idx in range(3)]
-    start_voxels, end_voxels = [], []
-    for idx in range(0, num_partitions[0]):
-        for idy in range(0, num_partitions[1]):
-            for idz in range(0, num_partitions[2]):
-                start_voxel = [bbox_start_voxel[0] + idx * stride_size[0],
-                               bbox_start_voxel[1] + idy * stride_size[1],
-                               bbox_start_voxel[2] + idz * stride_size[2]]
-                end_voxel = [start_voxel[0] + box_size[0], start_voxel[1] + box_size[1], start_voxel[2] + box_size[2]]
-                for dim in range(3):
-                    if end_voxel[dim] > bbox_end_voxel[dim]:
-                        end_voxel[dim] = bbox_end_voxel[dim]
-                        start_voxel[dim] = end_voxel[dim] - box_size[dim]
-                        assert start_voxel[dim] >= 0
-
-                start_voxels.append(start_voxel)
-                end_voxels.append(end_voxel)
-
-    return start_voxels, end_voxels
+    return start_voxels
 
 
 def normalize_image(image, mean, std, clip, clip_min=-1.0, clip_max=1.0):
