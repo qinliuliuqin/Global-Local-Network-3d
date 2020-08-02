@@ -179,13 +179,16 @@ def bbox_partition_by_fixed_voxel_size(bbox_start_voxel, bbox_end_voxel, partiti
             if i == num_partitions[idx] - 1:
                 start_voxel[idx][i] = bbox_end_voxel[i] - partition_size[i]
 
-    start_voxels = []
+    start_voxels, end_voxels = [], []
     for i in range(len(start_voxel[0])):
         for j in range(len(start_voxel[1])):
             for k in range(len(start_voxel[2])):
                 start_voxels.append([start_voxel[0][i], start_voxel[1][j], start_voxel[2][k]])
+                end_voxels.append([start_voxel[0][i] + partition_size[0],
+                                   start_voxel[1][j] + partition_size[1],
+                                   start_voxel[2][k] + partition_size[2]])
 
-    return start_voxels
+    return start_voxels, end_voxels
 
 
 def normalize_image(image, mean, std, clip, clip_min=-1.0, clip_max=1.0):

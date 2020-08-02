@@ -3,7 +3,7 @@ import SimpleITK as sitk
 import torch
 import torch.nn.functional as F
 
-from utils.image_tools import convert_image_to_tensor, convert_tensor_to_image
+from utils.image_tools import convert_image_to_tensor, convert_tensor_to_image, bbox_partition_by_fixed_voxel_size
 
 
 def down_sample_image_tensor(image_t, down_sample_ratio=4, mode='trilinear', align_corners=None):
@@ -17,16 +17,20 @@ def down_sample_image_tensor(image_t, down_sample_ratio=4, mode='trilinear', ali
     return down_sampled_image_t
 
 
-def generate_global_and_local_patches(images, masks, down_sample_ratio):
+def generate_global_and_local_patches(images, masks=None, down_sample_ratio=4):
     """ Generate the down-sampled global images and the cropped local images for training. """
     assert isinstance(images, torch.Tensor)
-    assert isinstance(masks, torch.Tensor)
-    assert images.dim() == masks.dim() == 5
-    assert np.all([images.shape[idx] - masks.shape[idx] == 0] for idx in range(5))
+    if masks is not None:
+        assert isinstance(masks, torch.Tensor)
+        assert images.dim() == masks.dim() == 5
+        assert np.all([images.shape[idx] - masks.shape[idx] == 0] for idx in range(5))
 
     # get the down-sampled global patches
     global_patches = down_sample_image_tensor(images, down_sample_ratio, 'trilinear', True)
-    global_masks = down_sample_image_tensor(masks, down_sample_ratio, 'nearest')
+
+    global_masks = None
+    if masks is not None:
+        global_masks = down_sample_image_tensor(masks, down_sample_ratio, 'nearest')
 
     batch, _, dim_z, dim_y, dim_x = global_patches.shape
     down_sampled_size = [dim_z, dim_y, dim_x]
@@ -46,10 +50,14 @@ def generate_global_and_local_patches(images, masks, down_sample_ratio):
 
         local_patch = images[idx, :, sp[0]:ep[0], sp[1]:ep[1], sp[2]:ep[2]]
         local_patches.append(torch.unsqueeze(local_patch, dim=0))
-        local_mask = masks[idx, :, sp[0]:ep[0], sp[1]:ep[1], sp[2]:ep[2]]
-        local_masks.append(torch.unsqueeze(local_mask, dim=0))
 
-    local_patches, local_masks = torch.cat(local_patches), torch.cat(local_masks)
+        if masks is not None:
+            local_mask = masks[idx, :, sp[0]:ep[0], sp[1]:ep[1], sp[2]:ep[2]]
+            local_masks.append(torch.unsqueeze(local_mask, dim=0))
+
+    local_patches = torch.cat(local_patches)
+    local_masks = torch.cat(local_masks) if local_masks is not None else None
+
     global_to_local_coords = torch.FloatTensor(global_to_local_coords)
 
     return global_patches, global_masks, local_patches, local_masks, global_to_local_coords
@@ -112,54 +120,58 @@ class Evaluator(object):
         self.down_sample_ratio = down_sample_ratio
         self.normalizer = normalizer
 
-    def get_patch_start_coords(self, image_size):
-        num_crops = [int(np.ceil(int(image_size[idx]) / int(self.crop_size[idx]))) for idx in range(3)]
-        start_coords = [[0, 0, 0]]
-        for idx in range(1, num_crops[0]):
-            for idy in range(1, num_crops[1]):
-                for idz in range(1, num_crops[2]):
-                    start_coords.append([idx * self.crop_size[0], idy * self.crop_size[1], idz * self.crop_size[2]])
-
-        return start_coords
-
     def evaluate(self, images, masks):
         assert isinstance(images, torch.Tensor)
         assert isinstance(masks, torch.Tensor)
         assert images.dim() == masks.dim() == 5
         assert np.all([images.shape[idx] == masks.shape[idx] for idx in range(3)])
+        assert images.shape[0] == 1
 
         print(images.shape, masks.shape)
+        dim_z, dim_y, dim_x = images.shape[2], images.shape[1], images.shape[0]
 
-        # # crop image and mask into patches
-        # cropped_images, cropped_masks = [], []
-        # start_coords = self.get_patch_start_coords(image_size)
-        # for coords in start_coords:
-        #     cropped_image = image[coords[0]:coords[0] + self.crop_size[0],
-        #                     coords[0]:coords[0] + self.crop_size[0], coords[0]:coords[0] + self.crop_size[0]]
-        #
-        #     cropped_mask = mask[coords[0]:coords[0] + self.crop_size[0],
-        #                     coords[0]:coords[0] + self.crop_size[0], coords[0]:coords[0] + self.crop_size[0]]
-        #
-        #     cropped_image_size = cropped_image.GetSize()
-        #     padding_size = [self.crop_size[idx] - cropped_image_size[idx] for idx in range(3)]
-        #     if np.any([padding_size[idx] > 0 for idx in range(3)]):
-        #         cropped_image = sitk.ConstantPad(cropped_image, [0, 0, 0], padding_size)
-        #         cropped_mask = sitk.ConstantPad(cropped_mask, [0, 0, 0], padding_size)
-        #
-        #     cropped_images.append(self.normalizer(cropped_image))
-        #     cropped_masks.append(cropped_mask)
-        #
-        # # test the cropped patches
-        # with torch.no_grad():
-        #     for idx, image in enumerate(cropped_images):
-        #         image_t = convert_image_to_tensor(image)
-        #         images_t = torch.unsqueeze(image_t, dim=0)
-        #
-        #         mask = cropped_masks[idx]
-        #         mask_t = convert_image_to_tensor(mask)
-        #         masks_t = torch.unsqueeze(mask_t, dim=0)
-        #
-        #
-        #         # self.model(images_t, masks_t, g2l_coords)
+        # get the start voxels
+        bbox_start_voxel, bbox_end_voxel = [0, 0, 0], [images.shape[4], images.shape[3], images.shape[2]]
+        start_voxels, end_voxels = bbox_partition_by_fixed_voxel_size(bbox_start_voxel, bbox_end_voxel, self.crop_size)
 
-        return 0
+        # crop image and mask into patches
+        cropped_images, cropped_masks = [], []
+        for idx in range(len(start_voxels)):
+            start_voxel, end_voxel = start_voxels[idx], end_voxels[idx]
+            if end_voxel[0] <= dim_x and end_voxel[1] < dim_y and end_voxel[2] < dim_x:
+                cropped_image = images[:, :, start_voxel[2]:end_voxel[2], start_voxel[1]:end_voxel[1], start_voxel[0]:end_voxel[0]]
+                cropped_mask = masks[:, :, start_voxel[2]:end_voxel[2], start_voxel[1]:end_voxel[1], start_voxel[0]:end_voxel[0]]
+            else:
+                end_voxel[0] = min(end_voxel[0], dim_x)
+                end_voxel[1] = min(end_voxel[1], dim_y)
+                end_voxel[2] = min(end_voxel[2], dim_z)
+                cropped_image = images[:, :, start_voxel[2]:end_voxel[2], start_voxel[1]:end_voxel[1], start_voxel[0]:end_voxel[0]]
+                cropped_mask = masks[:, :, start_voxel[2]:end_voxel[2], start_voxel[1]:end_voxel[1], start_voxel[0]:end_voxel[0]]
+
+                cropped_image = convert_tensor_to_image(cropped_image, dtype=np.float32)
+                cropped_mask = convert_tensor_to_image(cropped_mask, dtype=np.float32)
+
+                padding_size = [dim_x - end_voxel[0], dim_y - end_voxel[1], dim_z - end_voxel[2]]
+                cropped_image = sitk.ConstantPad(cropped_image, [0, 0, 0], padding_size)
+                cropped_mask = sitk.ConstantPad(cropped_mask, [0, 0, 0], padding_size)
+
+                # convert image to tensor
+                cropped_image = convert_image_to_tensor(cropped_image)
+                cropped_mask = convert_image_to_tensor(cropped_mask)
+
+            cropped_images.append(cropped_image)
+            cropped_masks.append(cropped_mask)
+
+        # test the cropped patches
+        with torch.no_grad():
+            for idx in range(len(cropped_images)):
+                image, mask = cropped_images[idx], cropped_masks[idx]
+                global_patches, global_masks, local_patches, local_masks, global_to_local_coords = \
+                    generate_global_and_local_patches(image, mask, self.down_sample_ratio)
+
+                out_global, out_local, out_g2l = self.model(global_patches, local_patches, global_to_local_coords)
+                res_g = self.metrics(out_global, global_masks)
+                res_l = self.metrics(out_local, local_masks)
+                res_g2l = self.metrics(out_g2l, local_masks)
+
+        return res_g2l
