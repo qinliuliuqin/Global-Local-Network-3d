@@ -127,8 +127,7 @@ class Evaluator(object):
         assert np.all([images.shape[idx] == masks.shape[idx] for idx in range(3)])
         assert images.shape[0] == 1
 
-        print(images.shape, masks.shape)
-        dim_z, dim_y, dim_x = images.shape[2], images.shape[1], images.shape[0]
+        dim_z, dim_y, dim_x = images.shape[2], images.shape[3], images.shape[4]
 
         # get the start voxels
         bbox_start_voxel, bbox_end_voxel = [0, 0, 0], [images.shape[4], images.shape[3], images.shape[2]]
@@ -137,27 +136,32 @@ class Evaluator(object):
         # crop image and mask into patches
         cropped_images, cropped_masks = [], []
         for idx in range(len(start_voxels)):
+
             start_voxel, end_voxel = start_voxels[idx], end_voxels[idx]
             if end_voxel[0] <= dim_x and end_voxel[1] < dim_y and end_voxel[2] < dim_x:
                 cropped_image = images[:, :, start_voxel[2]:end_voxel[2], start_voxel[1]:end_voxel[1], start_voxel[0]:end_voxel[0]]
                 cropped_mask = masks[:, :, start_voxel[2]:end_voxel[2], start_voxel[1]:end_voxel[1], start_voxel[0]:end_voxel[0]]
+
             else:
-                end_voxel[0] = min(end_voxel[0], dim_x)
-                end_voxel[1] = min(end_voxel[1], dim_y)
-                end_voxel[2] = min(end_voxel[2], dim_z)
-                cropped_image = images[:, :, start_voxel[2]:end_voxel[2], start_voxel[1]:end_voxel[1], start_voxel[0]:end_voxel[0]]
-                cropped_mask = masks[:, :, start_voxel[2]:end_voxel[2], start_voxel[1]:end_voxel[1], start_voxel[0]:end_voxel[0]]
+                real_end_voxel = end_voxel[:]
+                real_end_voxel[0] = min(end_voxel[0], dim_x)
+                real_end_voxel[1] = min(end_voxel[1], dim_y)
+                real_end_voxel[2] = min(end_voxel[2], dim_z)
+                cropped_image = images[0, 0, start_voxel[2]:real_end_voxel[2], start_voxel[1]:real_end_voxel[1], start_voxel[0]:real_end_voxel[0]]
+                cropped_mask = masks[0, 0, start_voxel[2]:real_end_voxel[2], start_voxel[1]:real_end_voxel[1], start_voxel[0]:real_end_voxel[0]]
 
                 cropped_image = convert_tensor_to_image(cropped_image, dtype=np.float32)
                 cropped_mask = convert_tensor_to_image(cropped_mask, dtype=np.float32)
 
-                padding_size = [dim_x - end_voxel[0], dim_y - end_voxel[1], dim_z - end_voxel[2]]
+                padding_size = [end_voxel[0] - real_end_voxel[0], end_voxel[1] - real_end_voxel[1], end_voxel[2] - real_end_voxel[2]]
                 cropped_image = sitk.ConstantPad(cropped_image, [0, 0, 0], padding_size)
                 cropped_mask = sitk.ConstantPad(cropped_mask, [0, 0, 0], padding_size)
 
                 # convert image to tensor
                 cropped_image = convert_image_to_tensor(cropped_image)
+                cropped_image = torch.unsqueeze(cropped_image, 0)
                 cropped_mask = convert_image_to_tensor(cropped_mask)
+                cropped_mask = torch.unsqueeze(cropped_mask, 0)
 
             cropped_images.append(cropped_image)
             cropped_masks.append(cropped_mask)
@@ -169,9 +173,11 @@ class Evaluator(object):
                 global_patches, global_masks, local_patches, local_masks, global_to_local_coords = \
                     generate_global_and_local_patches(image, mask, self.down_sample_ratio)
 
-                out_global, out_local, out_g2l = self.model(global_patches, local_patches, global_to_local_coords)
-                res_g = self.metrics(out_global, global_masks)
-                res_l = self.metrics(out_local, local_masks)
-                res_g2l = self.metrics(out_g2l, local_masks)
+                out_global, out_local, out_g2l = \
+                    self.model(global_patches, local_patches, 3, global_to_local_coords, self.down_sample_ratio)
+                # res_g = self.metrics(out_global, global_masks)
+                # res_l = self.metrics(out_local, local_masks)
+                # res_g2l = self.metrics(out_g2l, local_masks)
 
-        return res_g2l
+        # return res_g2l
+        return 0
