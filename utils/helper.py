@@ -177,7 +177,6 @@ class Evaluator(object):
                     self.model(global_patches, local_patches, 3, global_to_local_coords, self.down_sample_ratio)
                 # res_g = self.metrics(out_global, global_masks)
                 # res_l = self.metrics(out_local, local_masks)
-                # res_g2l = self.metrics(out_g2l, local_masks)
+                res_g2l = self.metrics(out_g2l, local_masks)
 
-        # return res_g2l
-        return 0
+        return res_g2l

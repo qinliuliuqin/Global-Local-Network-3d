@@ -24,7 +24,7 @@ __C.general.save_dir = '/mnt/projects/CT_Dental/debug/model_0805_2020'
 __C.general.model_scale = 'fine'
 
 # continue training from certain epoch, -1 to train from scratch
-__C.general.resume_epoch = 7
+__C.general.resume_epoch = -1
 
 # the number of GPUs used in training. Set to 0 if using cpu only.
 __C.general.num_gpus = 0
