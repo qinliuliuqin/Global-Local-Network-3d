@@ -1,5 +1,4 @@
 import argparse
-import importlib
 import numpy as np
 import os
 import shutil
@@ -10,16 +9,15 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
-from segmentation3d.dataloader.sampler import EpochConcateSampler
 from segmentation3d.loss.focal_loss import FocalLoss
 from segmentation3d.loss.multi_dice_loss import MultiDiceLoss
 from segmentation3d.utils.file_io import load_config, setup_logger
 from segmentation3d.utils.image_tools import save_intermediate_results
-from segmentation3d.utils.model_io import load_checkpoint, save_checkpoint
 
 from dataset.dataset import SegmentationDataset
 from networks.global_local_net import GlobalLocalNetwork
 from networks.module.weight_init import kaiming_weight_init
+from utils.model_io import load_checkpoint, save_checkpoint
 from utils.helper import Trainer, Evaluator
 
 
@@ -135,9 +133,9 @@ def train(train_config_file):
 
     # load checkpoint if resume epoch > 0
     if train_cfg.general.resume_epoch >= 0:
-        last_save_epoch, batch_start = load_checkpoint(train_cfg.general.resume_epoch, net, opt, model_folder)
+        last_save_epoch = load_checkpoint(train_cfg.general.resume_epoch, net, opt, model_folder)
     else:
-        last_save_epoch, batch_start = 0, 0
+        last_save_epoch = 0
 
     if train_cfg.loss.name == 'Focal':
         # reuse focal loss if exists
@@ -152,7 +150,7 @@ def train(train_config_file):
 
     writer = SummaryWriter(os.path.join(model_folder, 'tensorboard'))
 
-    min_avg_dice = 0
+    max_avg_dice = -1
     for epoch_idx in range(train_cfg.train.epochs):
         train_one_epoch(net, train_cfg.loss.branch_weight, opt, train_data_loader, train_cfg.dataset.down_sample_ratio,
             loss_func, train_cfg.general.num_gpus, epoch_idx+last_save_epoch, logger, writer, train_cfg.train.print_freq)
@@ -162,10 +160,11 @@ def train(train_config_file):
             avg_dice = evaluate_one_epoch(net, val_data_loader, train_cfg.dataset.crop_size,
                 train_cfg.dataset.down_sample_ratio, train_cfg.dataset.crop_normalizers[0])
 
-            if avg_dice < min_avg_dice:
-                min_avg_dice = avg_dice
+            if max_avg_dice < avg_dice:
+                # min_avg_dice = avg_dice
+
                 # save model
-                # to be done
+                save_checkpoint(net, opt, epoch_idx, train_cfg, max_stride, 1)
 
 def main():
 
