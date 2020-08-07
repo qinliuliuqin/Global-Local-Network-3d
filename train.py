@@ -9,17 +9,14 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
-from segmentation3d.loss.focal_loss import FocalLoss
-from segmentation3d.loss.multi_dice_loss import MultiDiceLoss
-from segmentation3d.utils.file_io import load_config, setup_logger
-from segmentation3d.utils.image_tools import save_intermediate_results
-
 from dataset.dataset import SegmentationDataset
 from networks.global_local_net import GlobalLocalNetwork
 from networks.module.weight_init import kaiming_weight_init
+from utils.file_io import load_config, setup_logger
 from utils.model_io import load_checkpoint, save_checkpoint
 from utils.helper import Trainer, Evaluator
 from utils.metrics import Metrics
+from loss.focal_loss import FocalLoss
 
 
 def train_one_epoch(model, branch_weight, optimizer, data_loader, down_sample_ratio, loss_func, num_gpus, epoch, logger, writer, print_freq):
@@ -41,10 +38,10 @@ def train_one_epoch(model, branch_weight, optimizer, data_loader, down_sample_ra
     writer.add_scalar('Train/Loss', avg_loss / len(data_loader), epoch)
 
 
-def evaluate_one_epoch(model, data_loader, crop_size, down_sample_ratio, normalizer, metrics):
+def evaluate_one_epoch(model, data_loader, crop_size, down_sample_ratio, normalizer, metrics, labels):
     """ Evaluate one epoch """
 
-    evaluator = Evaluator(model, metrics, crop_size, down_sample_ratio, normalizer)
+    evaluator = Evaluator(model, metrics, crop_size, down_sample_ratio, normalizer, labels)
 
     avg_dice = 0
     for batch_idx, (image, mask, name) in enumerate(data_loader):
@@ -142,10 +139,6 @@ def train(train_config_file):
         # reuse focal loss if exists
         loss_func = FocalLoss(class_num=train_cfg.dataset.num_classes, alpha=train_cfg.loss.obj_weight,
                               gamma=train_cfg.loss.focal_gamma,use_gpu=train_cfg.general.num_gpus > 0)
-
-    elif train_cfg.loss.name == 'Dice':
-        loss_func = MultiDiceLoss(weights=train_cfg.loss.obj_weight, num_class=train_cfg.dataset.num_classes,
-                                  use_gpu=train_cfg.general.num_gpus > 0)
     else:
         raise ValueError('Unknown loss function')
 
@@ -158,12 +151,20 @@ def train(train_config_file):
 
         # evaluation
         if epoch_idx % train_cfg.train.save_epochs:
-            avg_dice = evaluate_one_epoch(net, val_data_loader, train_cfg.dataset.crop_size,
-                train_cfg.dataset.down_sample_ratio, train_cfg.dataset.crop_normalizers[0], Metrics())
+            avg_dice = evaluate_one_epoch(
+                net, val_data_loader, train_cfg.dataset.crop_size, train_cfg.dataset.down_sample_ratio,
+                train_cfg.dataset.crop_normalizers[0], Metrics(), [idx for idx in range(1, train_cfg.dataset.num_classes)]
+            )
 
             if max_avg_dice < avg_dice:
                 max_avg_dice = avg_dice
                 save_checkpoint(net, opt, epoch_idx, train_cfg, max_stride, 1)
+
+                # print training loss per batch
+                msg = 'epoch: {}, max dice: {}'
+                msg = msg.format(epoch_idx, avg_dice)
+                logger.info(msg)
+
 
 def main():
 

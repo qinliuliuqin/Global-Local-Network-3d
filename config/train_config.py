@@ -1,5 +1,5 @@
 from easydict import EasyDict as edict
-from segmentation3d.utils.normalizer import FixedNormalizer, AdaptiveNormalizer
+from utils.normalizer import FixedNormalizer, AdaptiveNormalizer
 
 
 __C = edict()
