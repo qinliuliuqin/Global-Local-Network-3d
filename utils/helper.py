@@ -139,7 +139,7 @@ class Evaluator(object):
         for idx in range(len(start_voxels)):
 
             start_voxel, end_voxel = start_voxels[idx], end_voxels[idx]
-            if end_voxel[0] <= dim_x and end_voxel[1] < dim_y and end_voxel[2] < dim_x:
+            if end_voxel[0] <= dim_x and end_voxel[1] <= dim_y and end_voxel[2] <= dim_z:
                 cropped_image = images[:, :, start_voxel[2]:end_voxel[2], start_voxel[1]:end_voxel[1], start_voxel[0]:end_voxel[0]]
                 cropped_mask = masks[:, :, start_voxel[2]:end_voxel[2], start_voxel[1]:end_voxel[1], start_voxel[0]:end_voxel[0]]
 
@@ -148,6 +148,7 @@ class Evaluator(object):
                 real_end_voxel[0] = min(end_voxel[0], dim_x)
                 real_end_voxel[1] = min(end_voxel[1], dim_y)
                 real_end_voxel[2] = min(end_voxel[2], dim_z)
+
                 cropped_image = images[0, 0, start_voxel[2]:real_end_voxel[2], start_voxel[1]:real_end_voxel[1], start_voxel[0]:real_end_voxel[0]]
                 cropped_mask = masks[0, 0, start_voxel[2]:real_end_voxel[2], start_voxel[1]:real_end_voxel[1], start_voxel[0]:real_end_voxel[0]]
 
@@ -172,6 +173,7 @@ class Evaluator(object):
             avg_res_g2l = 0
             for idx in range(len(cropped_images)):
                 image, mask = cropped_images[idx], cropped_masks[idx]
+
                 global_patches, global_masks, local_patches, local_masks, global_to_local_coords = \
                     generate_global_and_local_patches(image, mask, self.down_sample_ratio)
 
@@ -180,7 +182,7 @@ class Evaluator(object):
 
                 pred, _ = out_g2l[0].max(0)
                 mask = local_masks[0, 0]
-                res_g2l = self.metrics(pred.numpy(), mask.numpy(), self.labels)
+                res_g2l = self.metrics(pred.cpu().numpy(), mask.cpu().numpy(), self.labels)
                 avg_res_g2l += res_g2l
 
         return res_g2l / len(cropped_images)
