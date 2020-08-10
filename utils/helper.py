@@ -184,5 +184,6 @@ class Evaluator(object):
                 mask = local_masks[0, 0]
                 res_g2l = self.metrics(pred.cpu().numpy(), mask.cpu().numpy(), self.labels)
                 avg_res_g2l += res_g2l
+            avg_res_g2l /= len(cropped_images)
 
-        return res_g2l / len(cropped_images)
+        return avg_res_g2l
