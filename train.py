@@ -145,7 +145,7 @@ def train(train_config_file):
     writer = SummaryWriter(os.path.join(model_folder, 'tensorboard'))
 
     max_avg_dice = 0
-    for epoch_idx in range(train_cfg.train.epochs):
+    for epoch_idx in range(1, train_cfg.train.epochs + 1):
         train_one_epoch(net, train_cfg.loss.branch_weight, opt, train_data_loader, train_cfg.dataset.down_sample_ratio,
             loss_func, train_cfg.general.num_gpus, epoch_idx+last_save_epoch, logger, writer, train_cfg.train.print_freq)
 
