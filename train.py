@@ -103,7 +103,7 @@ def train(train_config_file):
 
     val_dataset = SegmentationDataset(
         mode='val',
-        im_list=train_cfg.general.train_im_list,
+        im_list=train_cfg.general.val_im_list,
         num_classes=train_cfg.dataset.num_classes,
         spacing=train_cfg.dataset.spacing,
         crop_size=train_cfg.dataset.crop_size,
