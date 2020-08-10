@@ -170,14 +170,14 @@ def bbox_partition_by_fixed_voxel_size(bbox_start_voxel, bbox_end_voxel, partiti
     :return start_coords: the list containing start coordinates of each partition patch
     """
     bbox_size = [bbox_end_voxel[idx] - bbox_start_voxel[idx] for idx in range(3)]
-    num_partitions = [int(np.ceil(bbox_size[idx] / partition_size[idx])) for idx in range(3)]
+    num_partitions = [int(np.ceil(bbox_size[idx] / partition_size[idx] - 1e-6)) for idx in range(3)]
     start_voxel = [[0] * num_partitions[idx] for idx in range(3)]
 
     for idx in range(3):
         for i in range(1, num_partitions[idx]):
-            start_voxel[idx][i] = start_voxel[idx][i - 1] + int(np.ceil((bbox_size[idx] - partition_size[idx]) / (num_partitions[idx] - 1)))
+            start_voxel[idx][i] = start_voxel[idx][i - 1] + int(np.ceil((bbox_size[idx] - partition_size[idx]) / (num_partitions[idx] - 1) - 1e-6))
             if i == num_partitions[idx] - 1:
-                start_voxel[idx][i] = bbox_end_voxel[i] - partition_size[i]
+                start_voxel[idx][i] = bbox_end_voxel[idx] - partition_size[idx]
 
     start_voxels, end_voxels = [], []
     for i in range(len(start_voxel[0])):
