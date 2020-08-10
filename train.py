@@ -159,11 +159,13 @@ def train(train_config_file):
             if max_avg_dice < avg_dice:
                 max_avg_dice = avg_dice
                 save_checkpoint(net, opt, epoch_idx, train_cfg, max_stride, 1)
+                msg = 'epoch: {}, best dice ratio: {}'
 
-                # print training loss per batch
-                msg = 'epoch: {}, max dice: {}'
-                msg = msg.format(epoch_idx, avg_dice)
-                logger.info(msg)
+            else:
+                msg = 'epoch: {},  dice ratio: {}'
+
+            msg = msg.format(epoch_idx, avg_dice)
+            logger.info(msg)
 
 
 def main():
