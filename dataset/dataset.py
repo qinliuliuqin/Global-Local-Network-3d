@@ -176,9 +176,6 @@ class SegmentationDataset(Dataset):
             seg = resample_spacing(seg, self.spacing, self.max_stride, 'NN')
 
             # crop image into patches
-            image_size = image.GetSize()
-
-
             image_t = convert_image_to_tensor(image)
             seg_t = convert_image_to_tensor(seg)
 

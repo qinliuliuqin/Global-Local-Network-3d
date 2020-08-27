@@ -10,25 +10,37 @@ from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 
 from dataset.dataset import SegmentationDataset
+from loss.focal_loss import FocalLoss
 from networks.global_local_net import GlobalLocalNetwork
 from networks.module.weight_init import kaiming_weight_init
 from utils.file_io import load_config, setup_logger
-from utils.model_io import load_checkpoint, save_checkpoint
 from utils.helper import Trainer, Evaluator
+from utils.image_tools import save_intermediate_results
+from utils.model_io import load_checkpoint, save_checkpoint
 from utils.metrics import Metrics
-from loss.focal_loss import FocalLoss
 
 
-def train_one_epoch(model, branch_weight, optimizer, data_loader, down_sample_ratio, loss_func, num_gpus, epoch, logger, writer, print_freq):
+def train_one_epoch(model, branch_weight, optimizer, data_loader, down_sample_ratio, loss_func, num_gpus, epoch, logger, writer,
+                    print_freq, debug=False, debug_folder=None):
     """ Train one epoch """
 
     trainer = Trainer(model, optimizer, down_sample_ratio, loss_func, branch_weight, num_gpus > 0)
 
     avg_loss = 0
-    for batch_idx, (crops, masks, _, _) in enumerate(data_loader):
+    for batch_idx, (crops, masks, frames, names) in enumerate(data_loader):
         begin_t = time.time()
         loss = trainer.train(crops, masks)
         batch_duration = time.time() - begin_t
+
+        # save training crops for visualization
+        if debug:
+            assert debug_folder is not None
+            if not os.path.isdir(debug_folder):
+                os.makedirs(debug_folder)
+
+            batch_size = crops.size(0)
+            save_folder = os.path.join(debug_folder, 'batch_{}'.format(batch_idx))
+            save_intermediate_results(list(range(batch_size)), crops, masks, None, frames, names, save_folder)
 
         # print training loss per batch
         msg = 'epoch: {}, batch: {}, train_loss: {:.4f}, time: {:.4f} s/vol'
@@ -147,7 +159,8 @@ def train(train_config_file):
     max_avg_dice = 0
     for epoch_idx in range(1, train_cfg.train.epochs + 1):
         train_one_epoch(net, train_cfg.loss.branch_weight, opt, train_data_loader, train_cfg.dataset.down_sample_ratio,
-            loss_func, train_cfg.general.num_gpus, epoch_idx+last_save_epoch, logger, writer, train_cfg.train.print_freq)
+            loss_func, train_cfg.general.num_gpus, epoch_idx+last_save_epoch, logger, writer, train_cfg.train.print_freq,
+            train_cfg.debug.save_inputs, os.path.join(model_folder, 'debug'))
 
         # evaluation
         if epoch_idx % train_cfg.train.save_epochs:
