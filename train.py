@@ -29,18 +29,22 @@ def train_one_epoch(model, branch_weight, optimizer, data_loader, down_sample_ra
     avg_loss = 0
     for batch_idx, (crops, masks, frames, names) in enumerate(data_loader):
         begin_t = time.time()
-        loss = trainer.train(crops, masks)
+        loss, patches_g, masks_g, out_g, patches_l, masks_l, out_l, out_g2l = trainer.train(crops, masks)
         batch_duration = time.time() - begin_t
 
         # save training crops for visualization
         if debug:
             assert debug_folder is not None
-            if not os.path.isdir(debug_folder):
-                os.makedirs(debug_folder)
-
             batch_size = crops.size(0)
-            save_folder = os.path.join(debug_folder, 'batch_{}'.format(batch_idx))
+
+            save_folder = os.path.join(debug_folder, 'images', 'batch_{}'.format(batch_idx))
             save_intermediate_results(list(range(batch_size)), crops, masks, None, frames, names, save_folder)
+
+            save_folder = os.path.join(debug_folder, 'global', 'batch_{}'.format(batch_idx))
+            save_intermediate_results(list(range(batch_size)), patches_g, masks_g, out_g, frames, names, save_folder)
+
+            save_folder = os.path.join(debug_folder, 'local', 'batch_{}'.format(batch_idx))
+            save_intermediate_results(list(range(batch_size)), patches_l, masks_l, out_g2l, frames, names, save_folder)
 
         # print training loss per batch
         msg = 'epoch: {}, batch: {}, train_loss: {:.4f}, time: {:.4f} s/vol'

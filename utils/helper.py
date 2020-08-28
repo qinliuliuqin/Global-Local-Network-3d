@@ -107,7 +107,7 @@ class Trainer(object):
         # update weights
         self.optimizer.step()
 
-        return loss.item()
+        return loss.item(), global_patches, global_masks, out_global, local_patches, local_masks, out_local, out_global2local
 
 
 class Evaluator(object):
