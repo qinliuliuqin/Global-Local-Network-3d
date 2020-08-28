@@ -94,7 +94,8 @@ __C.loss.obj_weight = [1] * __C.dataset.num_classes
 __C.loss.focal_gamma = 2
 
 # the weights for global branch, local branch, and global-to-local branch
-__C.loss.branch_weight = [0, 0, 1]
+__C.loss.branch_weight = [1, 0, 0]
+__C.loss.branch_type = 'g'
 
 ##################################
 # net

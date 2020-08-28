@@ -54,14 +54,14 @@ def train_one_epoch(model, branch_weight, optimizer, data_loader, down_sample_ra
     writer.add_scalar('Train/Loss', avg_loss / len(data_loader), epoch)
 
 
-def evaluate_one_epoch(model, data_loader, crop_size, down_sample_ratio, normalizer, metrics, labels):
+def evaluate_one_epoch(model, data_loader, crop_size, down_sample_ratio, normalizer, metrics, labels, branch='g2l'):
     """ Evaluate one epoch """
 
     evaluator = Evaluator(model, metrics, crop_size, down_sample_ratio, normalizer, labels)
 
     avg_dice = 0
     for batch_idx, (image, mask, name) in enumerate(data_loader):
-        dice = evaluator.evaluate(image, mask)
+        dice = evaluator.evaluate(image, mask, branch)
         avg_dice += dice
 
     return avg_dice / len(data_loader)
@@ -170,7 +170,8 @@ def train(train_config_file):
         if epoch_idx % train_cfg.train.save_epochs:
             avg_dice = evaluate_one_epoch(
                 net, val_data_loader, train_cfg.dataset.crop_size, train_cfg.dataset.down_sample_ratio,
-                train_cfg.dataset.crop_normalizers[0], Metrics(), [idx for idx in range(1, train_cfg.dataset.num_classes)]
+                train_cfg.dataset.crop_normalizers[0], Metrics(), [idx for idx in range(1, train_cfg.dataset.num_classes)],
+                train_cfg.loss.branch_type
             )
 
             if max_avg_dice < avg_dice:

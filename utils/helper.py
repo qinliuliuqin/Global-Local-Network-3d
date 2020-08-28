@@ -121,7 +121,7 @@ class Evaluator(object):
         self.normalizer = normalizer
         self.labels = labels
 
-    def evaluate(self, images, masks):
+    def evaluate(self, images, masks, branch='g2l'):
         assert isinstance(images, torch.Tensor)
         assert isinstance(masks, torch.Tensor)
         assert images.dim() == masks.dim() == 5
@@ -170,7 +170,7 @@ class Evaluator(object):
 
         # test the cropped patches
         with torch.no_grad():
-            avg_res_g2l = 0
+            avg_res = 0
             for idx in range(len(cropped_images)):
                 image, mask = cropped_images[idx], cropped_masks[idx]
 
@@ -180,10 +180,21 @@ class Evaluator(object):
                 out_global, out_local, out_g2l = \
                     self.model(global_patches, local_patches, 3, global_to_local_coords, self.down_sample_ratio)
 
-                pred, _ = out_g2l[0].max(0)
-                mask = local_masks[0, 0]
-                res_g2l = self.metrics(pred.cpu().numpy(), mask.cpu().numpy(), self.labels)
-                avg_res_g2l += res_g2l
-            avg_res_g2l /= len(cropped_images)
+                if branch == 'g2l':
+                    pred, _ = out_g2l[0].max(0)
+                    mask = local_masks[0, 0]
 
-        return avg_res_g2l
+                elif branch == 'g':
+                    pred, _ = out_global[0].max(0)
+                    mask = global_masks[0, 0]
+
+                else:
+                    pred, _ = out_local[0].max(0)
+                    mask = local_masks[0, 0]
+
+                res = self.metrics(pred.cpu().numpy(), mask.cpu().numpy(), self.labels)
+                avg_res += res
+
+            avg_res /= len(cropped_images)
+
+        return avg_res
