@@ -181,15 +181,27 @@ class Evaluator(object):
                     self.model(global_patches, local_patches, 3, global_to_local_coords, self.down_sample_ratio)
 
                 if branch == 'g2l':
-                    pred, _ = out_g2l[0].max(0)
+                    _, pred = out_g2l[0].max(0)
                     mask = local_masks[0, 0]
 
                 elif branch == 'g':
-                    pred, _ = out_global[0].max(0)
+                    _, pred = out_global[0].max(0)
                     mask = global_masks[0, 0]
 
+                    # import os
+                    # debug_folder = '/mnt/projects/CT_Dental/debug/model_0805_2020'
+                    # save_folder = os.path.join(debug_folder, 'val', 'images', 'batch_{}'.format(idx))
+                    # if not os.path.isdir(save_folder):
+                    #     os.makedirs(save_folder)
+                    #
+                    # img_pred = convert_tensor_to_image(pred, np.float32)
+                    # sitk.WriteImage(img_pred, os.path.join(save_folder, 'img.nii.gz'), True)
+                    #
+                    # img_mask = convert_tensor_to_image(mask, np.float32)
+                    # sitk.WriteImage(img_mask, os.path.join(save_folder, 'mask.nii.gz'), True)
+
                 else:
-                    pred, _ = out_local[0].max(0)
+                    _, pred = out_local[0].max(0)
                     mask = local_masks[0, 0]
 
                 res = self.metrics(pred.cpu().numpy(), mask.cpu().numpy(), self.labels)
