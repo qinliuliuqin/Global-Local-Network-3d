@@ -167,7 +167,7 @@ def train(train_config_file):
             train_cfg.debug.save_inputs, os.path.join(model_folder, 'debug'))
 
         # evaluation
-        if epoch_idx % train_cfg.train.save_epochs:
+        if epoch_idx % train_cfg.train.save_epochs == 0:
             avg_dice = evaluate_one_epoch(
                 net, val_data_loader, train_cfg.dataset.crop_size, train_cfg.dataset.down_sample_ratio,
                 train_cfg.dataset.crop_normalizers[0], Metrics(), [idx for idx in range(1, train_cfg.dataset.num_classes)],
