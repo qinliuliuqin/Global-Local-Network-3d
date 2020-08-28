@@ -85,19 +85,19 @@ def save_intermediate_results(idxs, crops, masks, outputs, frames, file_names, o
             frame = frames[i].numpy()
             for modality_idx, image in enumerate(images):
                 set_image_frame(image, frame)
-                sitk.WriteImage(image, os.path.join(case_out_folder, 'batch_{}_crop_{}.nii.gz'.format(i, modality_idx)))
+                sitk.WriteImage(image, os.path.join(case_out_folder, 'batch_{}_crop_{}.nii.gz'.format(i, modality_idx)), True)
 
         if masks is not None:
-            mask = convert_tensor_to_image(masks[i, 0], dtype=np.int32)
+            mask = convert_tensor_to_image(masks[i, 0], dtype=np.float32)
             set_image_frame(mask, frames[i].numpy())
-            sitk.WriteImage(mask, os.path.join(case_out_folder, 'batch_{}_mask.nii.gz'.format(i)))
+            sitk.WriteImage(mask, os.path.join(case_out_folder, 'batch_{}_mask.nii.gz'.format(i)), True)
 
         if outputs is not None:
             cls_num = outputs.size()[1]
             for cls in range(cls_num):
                 output = convert_tensor_to_image(outputs[i, cls].data, dtype=np.float32)
                 set_image_frame(output, frames[i].numpy())
-                sitk.WriteImage(output, os.path.join(case_out_folder, 'batch_{}_output_{}.nii.gz'.format(i, cls)))
+                sitk.WriteImage(output, os.path.join(case_out_folder, 'batch_{}_output_{}.nii.gz'.format(i, cls)), True)
 
 
 def crop_image(image, cropping_center, cropping_size, cropping_spacing, interp_method):
